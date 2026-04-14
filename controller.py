@@ -49,12 +49,33 @@ class XController(ZenohTransport):
         super().__init__()
 
         pygame.joystick.init()
-        if pygame.joystick.get_count() == 0:
-            logger.error("No controller detected by Pygame")
 
-        self.joystick = pygame.joystick.Joystick(
-            0
-        )  # TODO: Update code to select the joystick if multiple joysticks are available
+        joy_count = pygame.joystick.get_count()
+        if joy_count == 0:
+            logger.error(
+                "Unable to find any joystick. Please make sure it connected..."
+            )
+            exit(1)
+        elif joy_count == 1:
+            self.joystick = pygame.joystick.Joystick(0)
+        else:
+            # List available joysticks
+            print("Multiple joysticks detected. Please select one:")
+            for i in range(joy_count):
+                joystick = pygame.joystick.Joystick(i)
+                print(f"{i}: {joystick.get_name()}")
+
+            # Prompt user for selection
+            while True:
+                try:
+                    choice = int(input("Enter the number of the joystick to use: "))
+                    if 0 <= choice < joy_count:
+                        self.joystick = pygame.joystick.Joystick(choice)
+                        break
+                    else:
+                        print(f"Please enter a number between 0 and {joy_count - 1}.")
+                except ValueError:
+                    print("Please enter a valid number.")
 
         self.msg = JoyMsg()
 
