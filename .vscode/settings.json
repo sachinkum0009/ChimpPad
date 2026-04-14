@@ -1,4 +1,7 @@
 {
+    "files.exclude": {
+        ".venv": true
+    },
     "editor.formatOnSave": true,
     "[python]": {
         "editor.codeActionsOnSave": {
@@ -10,4 +13,10 @@
     "python.analysis.inlayHints.variableTypes": true,
     "python.analysis.inlayHints.callArgumentNames": "all",
     "python.analysis.inlayHints.functionReturnTypes": true,
+    "python.analysis.extraPaths": [
+        ".venv/lib/python3.12/site-packages"
+    ],
+    "python.autoComplete.extraPaths": [
+        ".venv/lib/python3.12/site-packages"
+    ]
 }
