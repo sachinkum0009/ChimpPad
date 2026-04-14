@@ -1,0 +1,111 @@
+import logging
+import sys
+
+import pygame
+import zenoh
+
+from utils import JoyMsg
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    filename="app.log",
+)
+
+logger = logging.getLogger(__name__)
+
+# Add a StreamHandler to log to the console
+console_handler = logging.StreamHandler(sys.stdout)
+console_handler.setLevel(logging.INFO)
+console_handler.setFormatter(
+    logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+)
+
+# Add the console handler to the logger
+logger.addHandler(console_handler)
+
+
+class ZenohTransport:
+    def __init__(self):
+        config = zenoh.Config()
+        config.insert_json5("mode", '"client"')
+        config.insert_json5("connect/endpoints", '["tcp/10.147.19.232:7447"]')
+        self.session = zenoh.open(config)
+        self.joy_key = "joy/topic"
+        self.joy_pub = self.session.declare_publisher(self.joy_key)
+
+    def publish(self, msg):
+        buf = f"{msg}"
+        self.joy_pub.put(buf)
+
+    def __del__(self):
+        if self.session:
+            self.session.close()
+
+
+class XController(ZenohTransport):
+    def __init__(self):
+        """Initialize the important variables"""
+        super().__init__()
+
+        pygame.joystick.init()
+        if pygame.joystick.get_count() == 0:
+            logger.error("No controller detected by Pygame")
+
+        self.joystick = pygame.joystick.Joystick(
+            0
+        )  # TODO: Update code to select the joystick if multiple joysticks are available
+
+        self.msg = JoyMsg()
+
+    def monitor_controller(self):
+        self.joystick.init()
+        try:
+            while True:
+                for event in pygame.event.get():
+                    if event.type == pygame.JOYBUTTONDOWN:
+                        self.msg.button = event.button
+                        logger.info(f"type {type(self.msg.to_dict())}")
+                        self.publish(self.msg.to_dict())
+                        logger.info(f"Button {event.button} pressed")
+                        # rumble joystick
+                        res = self.joystick.rumble(0, 0.7, 500)
+                        if res:
+                            logger.info("rumbled success")
+                        else:
+                            logger.info("rumbled failure")
+                        self.msg.button = -1  # reset
+                    elif event.type == pygame.JOYAXISMOTION:
+                        if event.axis == 0:  # X-axis
+                            self.msg.x_axis = event.value
+                        elif event.axis == 1:  # Y-axis
+                            self.msg.y_axis = event.value
+                        elif event.axis == 2:  # Z-axis (if applicable)
+                            self.msg.z_axis = event.value
+                        if abs(event.value) > 0.1:
+                            self.publish(self.msg.to_dict())
+                            logger.info(f"Axis {event.axis} moved to {event.value:.2f}")
+                            # reset values after publising
+                            self.msg.x_axis = 0.0
+                            self.msg.y_axis = 0.0
+                            self.msg.z_axis = 0.0
+                    elif event.type == pygame.JOYHATMOTION:
+                        self.msg.hat = event.value
+                        self.publish(self.msg.to_dict())
+                        logger.info(f"D-pad moved to {event.value}")
+                        self.msg.hat = (0, 0)  # reset
+
+        except KeyboardInterrupt:
+            logger.info("\nStopping...")
+
+
+def main():
+    pygame.init()
+
+    x_controller = XController()
+    x_controller.monitor_controller()
+    pygame.quit()
+
+
+if __name__ == "__main__":
+    main()
